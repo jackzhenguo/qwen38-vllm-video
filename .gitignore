@@ -1,0 +1,10 @@
+.venv/
+model/
+videos/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.log
+sample_*.mp4
+sample_*.jpg
+.DS_Store

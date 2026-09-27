@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f4ee">
+  <title>Qwen Video Desk · 本地视频分析</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Qwen Video Desk 首页">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span>Qwen Video Desk</span>
+      </a>
+      <div class="status" id="status" role="status" aria-live="polite">
+        <span class="status-dot"></span><span id="status-text">正在检查模型</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="intro">
+        <div class="eyebrow"><span class="eyebrow-line"></span> LOCAL VIDEO INTELLIGENCE <span class="eyebrow-line"></span></div>
+        <h1>把视频交给模型，<br><em>直接问重点。</em></h1>
+        <p>上传一段 MP4，或粘贴视频地址。Qwen3.8-27B 会直接读取视频，回答你关心的画面、动作与时间线。</p>
+        <div class="intro-meta"><span>本地 vLLM 推理</span><i></i><span>无需手动抽帧</span><i></i><span>中文提问</span></div>
+      </section>
+
+      <section class="workspace" aria-label="视频分析工作区">
+        <div class="input-panel">
+          <div class="panel-heading">
+            <span class="step">01 / INPUT</span>
+            <h2>选择视频</h2>
+            <p>从本机选择 MP4，或使用可直接访问的视频 URL。</p>
+          </div>
+
+          <div class="tabs" role="tablist" aria-label="视频来源">
+            <button class="tab active" id="upload-tab" type="button" role="tab" aria-selected="true" aria-controls="upload-pane">上传文件</button>
+            <button class="tab" id="url-tab" type="button" role="tab" aria-selected="false" aria-controls="url-pane">视频 URL</button>
+          </div>
+
+          <div id="upload-pane" role="tabpanel" aria-labelledby="upload-tab">
+            <input id="file-input" type="file" accept="video/mp4,.mp4" hidden>
+            <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="选择或拖入 MP4 视频">
+              <div class="upload-icon" aria-hidden="true">
+                <svg viewBox="0 0 48 48" fill="none"><path d="M14 32h-2a7 7 0 0 1-.7-14A13 13 0 0 1 36 20a6 6 0 0 1 0 12h-2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M24 36V20m0 0-6 6m6-6 6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <strong id="drop-title">拖入视频，或点击选择</strong>
+              <span id="drop-subtitle">仅 MP4 · 最大 <span id="upload-limit">500</span> MB</span>
+            </div>
+          </div>
+
+          <div id="url-pane" role="tabpanel" aria-labelledby="url-tab" hidden>
+            <label class="field-label" for="video-url">视频链接</label>
+            <input class="url-input" id="video-url" type="url" placeholder="https://example.com/video.mp4" autocomplete="off" spellcheck="false">
+            <p class="field-help">链接需要指向可直接下载的视频文件。</p>
+          </div>
+
+          <div class="preview" id="preview" hidden>
+            <video id="preview-video" controls preload="metadata" playsinline></video>
+            <div class="preview-caption"><span id="preview-name"></span><span id="preview-size"></span></div>
+          </div>
+
+          <div class="question-block">
+            <label class="field-label" for="question">你想知道什么？</label>
+            <textarea id="question" rows="3" maxlength="4000" placeholder="例如：概括视频中的关键事件；仅在能确认时标出时间点。">请概括视频中的关键事件；仅在能确认时标出大致时间点。</textarea>
+            <div class="suggestions" aria-label="快捷问题">
+              <button type="button" data-question="请用三句话概括这段视频。">三句话概括</button>
+              <button type="button" data-question="按时间顺序列出关键事件；仅在能确认时标出大致时间点。">整理时间线</button>
+              <button type="button" data-question="视频中有哪些人物？他们分别做了什么？">人物与动作</button>
+            </div>
+          </div>
+
+          <button id="analyze-button" class="analyze-button" type="button">
+            <span id="button-label">开始分析视频</span>
+            <span class="button-arrow" aria-hidden="true">↗</span>
+          </button>
+          <p class="input-note">视频由你本机的 vLLM 服务处理。上传文件会在分析结束后删除。</p>
+        </div>
+
+        <div class="result-panel">
+          <div class="panel-heading result-heading">
+            <span class="step">02 / INSIGHT</span>
+            <h2>分析结果</h2>
+            <p id="result-meta">选择视频并提问，结果会显示在这里。</p>
+          </div>
+          <div class="result-body" id="result-body" aria-live="polite">
+            <div class="empty-state" id="empty-state">
+              <div class="empty-glyph" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+              <strong>等你提出第一个问题</strong>
+              <p>可以让模型概括内容、找关键动作，或整理时间线。</p>
+            </div>
+            <div class="loading-state" id="loading-state" hidden>
+              <div class="loader" aria-hidden="true"></div>
+              <strong>正在看视频</strong>
+              <p>模型正在解码画面并整理回答，已等待 <span id="elapsed">0</span> 秒</p>
+            </div>
+            <div class="answer" id="answer" hidden></div>
+            <div class="error-state" id="error-state" hidden></div>
+          </div>
+          <div class="result-footer"><span>QWEN3.8 · 27B</span><span>VIDEO UNDERSTANDING / LOCAL</span></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer"><span>Qwen Video Desk</span><span>Powered by Qwen3.8-27B + vLLM</span></footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,5 @@
+fastapi>=0.115,<1
+httpx>=0.27,<1
+openai>=1.60,<4
+python-multipart>=0.0.9,<1
+uvicorn>=0.30,<1
