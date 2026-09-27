@@ -16,7 +16,7 @@
 
 ## 已有 vLLM 服务：只启动网页
 
-先确保兼容 OpenAI Chat Completions 的 vLLM 服务运行在 `http://127.0.0.1:8000/v1`，模型名为 `Qwen3.8-27B`，支持 `video_url`。网页和 vLLM 必须能访问同一个视频目录；上传文件会在回答结束后自动删除。
+先确保兼容 OpenAI Chat Completions 的 vLLM 服务运行在 `http://127.0.0.1:8000/v1`，模型名为 `Qwen3.8-27B`，支持 `video_url`。网页和 vLLM 必须能访问同一个视频目录。
 
 ```bash
 git clone https://github.com/jackzhenguo/qwen38-vllm-video.git
@@ -28,6 +28,8 @@ QWEN_VIDEO_DIR="$PWD/videos" .venv/bin/uvicorn web_app:app --host 127.0.0.1 --po
 ```
 
 打开 **http://localhost:7860**。
+
+网页默认勾选“保存本次分析与视频到本机历史”。回答、问题和视频来源保存在本地 SQLite；上传的 MP4 也会保留在 `QWEN_VIDEO_DIR` 中。可从右上角“历史记录”重新打开视频、查看回答或继续提问。取消勾选时，上传文件会在分析结束后删除。删除最后一条引用某个本地视频的历史记录时，对应视频文件也会删除。视频 URL 历史只保存 URL，不下载远程视频。历史最多显示最近 100 条，文件不会自动清理，请留意磁盘空间。
 
 如果 API 地址或模型名不同，设置 `QWEN_API_BASE_URL` 和 `QWEN_MODEL`。`QWEN_MAX_UPLOAD_MB` 默认为 500。
 
@@ -86,6 +88,29 @@ swap=16GB
 & '.\analyze-qwen38-video.ps1' -Video 'C:\path\to\video.mp4' -Question '这段视频发生了什么？'
 ```
 
+### 登录 Windows 后自动启动
+
+模型环境准备好后，在 PowerShell 中运行一次：
+
+```powershell
+& '.\install-autostart.ps1'
+```
+
+脚本会在 Ubuntu WSL 中注册两个 systemd 服务（模型和网页），并创建当前 Windows 用户登录时运行的驻留任务。任务会保持 WSL 运行；以后登录 Windows 后，无需打开终端，待模型加载完成即可访问 `http://localhost:7860/`。网页会先出现，模型状态变为“在线”后即可分析视频。首次加载通常需要数分钟。
+
+这套自动启动依赖**用户登录 Windows**，不保证在登录界面之前可用。WSL、NVIDIA 驱动和模型文件仍需正常工作。查看状态：
+
+```powershell
+wsl -d Ubuntu -u root -- systemctl status qwen-video-vllm qwen-video-web
+Get-ScheduledTask -TaskName 'Qwen Video Desk Autostart'
+```
+
+停止并移除自动启动：
+
+```powershell
+& '.\uninstall-autostart.ps1'
+```
+
 Linux 命令行示例：
 
 ```bash
@@ -106,6 +131,7 @@ Linux 命令行示例：
 | `QWEN_API_BASE_URL` | `http://127.0.0.1:8000/v1` | 网页连接的 vLLM API |
 | `QWEN_MODEL` | `Qwen3.8-27B` | API 模型名 |
 | `QWEN_VIDEO_DIR` | `~/qwen38-vllm-video/videos` | 网页暂存上传视频的目录，需与 vLLM 的允许目录一致 |
+| `QWEN_HISTORY_DB` | `~/qwen38-vllm-video/history.sqlite3` | 本地分析历史数据库 |
 | `QWEN_MAX_UPLOAD_MB` | `500` | 单个上传文件大小上限 |
 | `MODEL_PATH` | `./model` | `serve.sh` 加载的模型目录 |
 | `VIDEO_DIR` | `./videos` | `serve.sh` 允许读取的本地媒体目录 |

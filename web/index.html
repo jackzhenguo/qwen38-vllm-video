@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#eef0ec">
   <title>Qwen Video Desk · 本地视频分析</title>
   <link rel="stylesheet" href="/static/style.css?v=2">
-  <link rel="stylesheet" href="/static/refinement.css?v=2">
-  <script src="/static/app.js?v=2" defer></script>
+  <link rel="stylesheet" href="/static/refinement.css?v=3">
+  <script src="/static/app.js?v=4" defer></script>
 </head>
 <body>
   <div class="page">
@@ -16,8 +16,11 @@
         <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
         <span>Qwen<span class="brand-light"> / Video Desk</span></span>
       </a>
-      <div class="status" id="status" role="status" aria-live="polite">
-        <span class="status-dot"></span><span id="status-text">正在检查模型</span>
+      <div class="top-actions">
+        <button class="history-button" id="history-button" type="button" aria-haspopup="dialog" aria-controls="history-drawer"><span class="history-icon" aria-hidden="true">◷</span> 历史记录 <span class="history-count" id="history-count" hidden>0</span></button>
+        <div class="status" id="status" role="status" aria-live="polite">
+          <span class="status-dot"></span><span id="status-text">正在检查模型</span>
+        </div>
       </div>
     </header>
 
@@ -80,11 +83,12 @@
             </div>
           </div>
 
+          <label class="save-option"><input id="save-history" type="checkbox" checked><span>保存本次分析与视频到本机历史</span></label>
           <button id="analyze-button" class="analyze-button" type="button">
             <span id="button-label">开始分析视频</span>
             <span class="button-arrow" aria-hidden="true">↗</span>
           </button>
-          <p class="input-note">视频由你本机的 vLLM 服务处理。上传文件会在分析结束后删除。</p>
+          <p class="input-note">视频由本机 vLLM 处理。关闭保存时，上传文件会在分析结束后删除。</p>
         </div>
 
         <div class="result-panel">
@@ -115,5 +119,12 @@
 
     <footer class="site-footer"><span>Qwen Video Desk</span><span>Powered by Qwen3.8-27B + vLLM</span></footer>
   </div>
+  <div class="drawer-scrim" id="history-scrim" hidden></div>
+  <aside class="history-drawer" id="history-drawer" role="dialog" aria-modal="true" aria-labelledby="history-title" hidden>
+    <div class="history-header"><div><span class="history-eyebrow">YOUR LOCAL ARCHIVE</span><h2 id="history-title">分析历史<span>.</span></h2></div><button id="history-close" class="history-close" type="button" aria-label="关闭历史记录">×</button></div>
+    <p class="history-intro">记录保存在这台电脑上。打开记录可查看回答，或继续提问。</p>
+    <div class="history-list" id="history-list"></div>
+    <div class="history-footer">上传的视频保存在 WSL 本地目录，占用磁盘空间。</div>
+  </aside>
 </body>
 </html>
