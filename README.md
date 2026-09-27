@@ -1,24 +1,26 @@
 # Qwen Video Desk
 
-一个给 **Qwen3.8-27B + vLLM** 用的本地视频分析网页。直接上传 MP4，或粘贴视频 URL，然后用中文提问。页面会显示模型连接状态、视频预览、分析进度和回答。
+[简体中文](README_ZH.md) | **English**
 
-分析接口支持流式输出：模型开始生成后，回答会逐段显示，并带有打字光标；完成后才写入本地历史。原有 `/api/analyze` 一次性返回接口仍可使用，网页使用 `/api/analyze/stream`。
+A local video analysis web app for **Qwen3.8-27B + vLLM**. Upload an MP4 or paste a video URL, then ask a question. The page shows the model connection status, a video preview, analysis progress, and the answer.
 
-项目使用 FastAPI + 原生 HTML/CSS/JavaScript，不依赖前端构建工具。网页同时监听本机的 IPv4 `127.0.0.1:7860` 和 IPv6 `[::1]:7860`，让浏览器访问 `localhost:7860` 时两种地址都可用。
+The analysis API supports streaming: once the model starts generating, the answer appears progressively with a typing cursor. The completed answer is then saved to local history. The original nonstreaming `/api/analyze` endpoint remains available; the web app uses `/api/analyze/stream`.
 
-## 已验证环境
+The project uses FastAPI and plain HTML/CSS/JavaScript, with no frontend build tools. The web app listens on both local IPv4 `127.0.0.1:7860` and IPv6 `[::1]:7860`, so either address used by `localhost:7860` works.
 
-- Windows 11 + Ubuntu WSL2
+## Verified setup
+
+- Windows 11 with Ubuntu WSL2
 - NVIDIA RTX 5090 32GB
-- vLLM 0.30.0、Python 3.12、CUDA 13.0
-- `unsloth/Qwen3.8-27B-NVFP4`，32K 上下文，FP8 KV 缓存
-- 本地 MP4 上传和远程 MP4 URL 均已端到端验证
+- vLLM 0.30.0, Python 3.12, CUDA 13.0
+- `unsloth/Qwen3.8-27B-NVFP4`, 32K context, FP8 KV cache
+- Local MP4 uploads and remote MP4 URLs tested end to end
 
-这个配置运行时约占 29.8GB 显存。模型权重和测试视频**不包含在仓库里**。
+This configuration uses about 29.8GB of VRAM while running. Model weights and test videos are **not included in this repository**.
 
-## 已有 vLLM 服务：只启动网页
+## Already running vLLM? Start only the web app
 
-先确保兼容 OpenAI Chat Completions 的 vLLM 服务运行在 `http://127.0.0.1:8000/v1`，模型名为 `Qwen3.8-27B`，支持 `video_url`。网页和 vLLM 必须能访问同一个视频目录。
+First, make sure an OpenAI Chat Completions compatible vLLM service is running at `http://127.0.0.1:8000/v1`, serves the model as `Qwen3.8-27B`, and supports `video_url`. The web app and vLLM must be able to access the same video directory.
 
 ```bash
 git clone https://github.com/jackzhenguo/qwen38-vllm-video.git
@@ -29,15 +31,15 @@ mkdir -p videos
 QWEN_VIDEO_DIR="$PWD/videos" .venv/bin/python run_web.py --port 7860
 ```
 
-打开 **http://localhost:7860**。
+Open **http://localhost:7860**.
 
-网页默认勾选“保存本次分析与视频到本机历史”。回答、问题和视频来源保存在本地 SQLite；上传的 MP4 也会保留在 `QWEN_VIDEO_DIR` 中。可从右上角“历史记录”重新打开视频、查看回答或继续提问。取消勾选时，上传文件会在分析结束后删除。删除最后一条引用某个本地视频的历史记录时，对应视频文件也会删除。视频 URL 历史只保存 URL，不下载远程视频。历史最多显示最近 100 条，文件不会自动清理，请留意磁盘空间。
+By default, the web app enables “Save this analysis and video to local history.” The answer, question, and video source are stored in local SQLite, and an uploaded MP4 remains in `QWEN_VIDEO_DIR`. Use “History” in the upper right to reopen a video, review its answer, or ask another question. If you turn history saving off, the uploaded file is removed after analysis. Deleting the last history entry that references a local video also removes that video file. For remote videos, history stores only the URL and does not download the video. The page shows up to 100 recent entries; files are not cleaned up automatically, so keep an eye on disk usage.
 
-如果 API 地址或模型名不同，设置 `QWEN_API_BASE_URL` 和 `QWEN_MODEL`。`QWEN_MAX_UPLOAD_MB` 默认为 500。
+If your API address or model name differs, set `QWEN_API_BASE_URL` and `QWEN_MODEL`. `QWEN_MAX_UPLOAD_MB` defaults to 500.
 
-## 从零在单张 RTX 5090 上部署
+## Deploy from scratch on one RTX 5090
 
-推荐在 Linux 或 WSL2 中执行。以下是本项目实际验证过的组合：
+Run these commands on Linux or WSL2. This is the combination verified for this project:
 
 ```bash
 git clone https://github.com/jackzhenguo/qwen38-vllm-video.git ~/qwen38-vllm-video
@@ -47,7 +49,7 @@ uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python --torch-backend=cu130 'vllm==0.30.0' -r requirements-web.txt
 ```
 
-在这套环境里，CUDA 运行库与编译器需要统一到 13.0：
+In this setup, keep the CUDA runtime and compiler on version 13.0:
 
 ```bash
 uv pip install --python .venv/bin/python --torch-backend=cu130 --no-deps --force-reinstall \
@@ -59,14 +61,14 @@ uv pip install --python .venv/bin/python --torch-backend=cu130 --no-deps --force
 ./serve.sh
 ```
 
-`serve.sh` 会设置 CUDA 编译器路径、限制首次 JIT 编译并发，并补齐 CUDA 轮子的库目录链接。模型首次加载和内核预热可能需要数分钟。另开终端启动网页：
+`serve.sh` sets the CUDA compiler path, limits concurrent JIT compilation on the first run, and links the required CUDA wheel library directories. The first model load and kernel warmup can take several minutes. Start the web app in another terminal:
 
 ```bash
 cd ~/qwen38-vllm-video
 .venv/bin/python run_web.py --port 7860
 ```
 
-在 WSL2 中，21.8GiB 权重可能超过默认内存上限。本机将 `%USERPROFILE%\.wslconfig` 设为：
+On WSL2, the 21.8GiB of model weights may exceed the default memory limit. On the verified machine, `%USERPROFILE%\.wslconfig` contains:
 
 ```ini
 [wsl2]
@@ -74,69 +76,69 @@ memory=24GB
 swap=16GB
 ```
 
-修改后运行 `wsl --shutdown` 生效。如果加载权重时仍报 `unable to mmap ... Cannot allocate memory`，可在 WSL 里运行 `sudo sysctl -w vm.overcommit_memory=1`；本机已把该设置写入 `/etc/sysctl.d/99-qwen38-vllm.conf`。
+Run `wsl --shutdown` after changing this file. If loading the weights still fails with `unable to mmap ... Cannot allocate memory`, run `sudo sysctl -w vm.overcommit_memory=1` in WSL. On the verified machine, this setting is persisted in `/etc/sysctl.d/99-qwen38-vllm.conf`.
 
-## Windows 使用
+## Using Windows
 
-上面的 WSL 环境准备好后，PowerShell 中可用 `start-ui.ps1` 启动网页。它会自动找到当前项目在 WSL 中的路径，默认使用 WSL 用户目录下 `qwen38-vllm-video/.venv/bin/python`：
+Once the WSL setup above is ready, use `start-ui.ps1` from PowerShell to launch the web app. It locates the current project path in WSL and, by default, uses `qwen38-vllm-video/.venv/bin/python` in the WSL user's home directory:
 
 ```powershell
 & '.\start-ui.ps1'
 ```
 
-也可以用命令行脚本分析 Windows 本地视频，它会复制一份到 WSL 的 `videos/` 目录：
+You can also analyze a local Windows video with the command line script. It copies the video into the WSL `videos/` directory:
 
 ```powershell
-& '.\analyze-qwen38-video.ps1' -Video 'C:\path\to\video.mp4' -Question '这段视频发生了什么？'
+& '.\analyze-qwen38-video.ps1' -Video 'C:\path\to\video.mp4' -Question 'What happens in this video?'
 ```
 
-### 登录 Windows 后自动启动
+### Start automatically after signing in to Windows
 
-模型环境准备好后，在 PowerShell 中运行一次：
+Once the model environment is ready, run this once in PowerShell:
 
 ```powershell
 & '.\install-autostart.ps1'
 ```
 
-脚本会在 Ubuntu WSL 中注册两个 systemd 服务（模型和网页），并创建当前 Windows 用户登录时运行的驻留任务。任务会保持 WSL 运行；以后登录 Windows 后，无需打开终端，待模型加载完成即可访问 `http://localhost:7860/`。网页会先出现，模型状态变为“在线”后即可分析视频。首次加载通常需要数分钟。
+The script registers two systemd services in Ubuntu WSL (model and web app) and creates a persistent task that runs when the current Windows user signs in. The task keeps WSL running. On future sign-ins, you can open `http://localhost:7860/` without starting a terminal once the model finishes loading. The web page appears first; analysis is available when the model status shows that it is connected. Initial loading usually takes several minutes.
 
-这套自动启动依赖**用户登录 Windows**，不保证在登录界面之前可用。WSL、NVIDIA 驱动和模型文件仍需正常工作。查看状态：
+Automatic startup depends on **signing in to Windows**; availability before sign-in is not guaranteed. WSL, the NVIDIA driver, and model files must still work. Check their status with:
 
 ```powershell
 wsl -d Ubuntu -u root -- systemctl status qwen-video-vllm qwen-video-web
 Get-ScheduledTask -TaskName 'Qwen Video Desk Autostart'
 ```
 
-停止并移除自动启动：
+Stop and remove automatic startup:
 
 ```powershell
 & '.\uninstall-autostart.ps1'
 ```
 
-Linux 命令行示例：
+Linux command line example:
 
 ```bash
-.venv/bin/python analyze_video.py 'https://example.com/video.mp4' --question '这段视频发生了什么？'
+.venv/bin/python analyze_video.py 'https://example.com/video.mp4' --question 'What happens in this video?'
 ```
 
-## 当前限制
+## Current limitations
 
-- 网页上传支持 MP4；视频 URL 需要指向可直接访问的视频文件。
-- 模型会由 vLLM 在服务端解码、采样视频帧。当前已验证默认采样方式；在这套 vLLM/Transformers 版本中，请求级 `mm_processor_kwargs.fps` 会触发处理器错误，因此界面没有开放帧率设置。
-- 本项目验证的是**视频画面分析**；没有验证视频音轨的语音识别。
-- 32K 是启动配置，不代表模型的原生上下文上限。可通过 `MAX_MODEL_LEN` 调整，但更高上限需要更多显存。
+- The web app accepts MP4 uploads. A video URL must point to a directly accessible video file.
+- vLLM decodes the video and samples its frames on the server. The default sampling method has been verified. With the vLLM/Transformers versions in this setup, request-level `mm_processor_kwargs.fps` causes a processor error, so the UI does not expose an FPS setting.
+- This project verifies **visual video analysis**. Speech recognition from a video's audio track has not been verified.
+- 32K is the configured context length, not necessarily the model's native maximum. You can change `MAX_MODEL_LEN`, but a higher limit requires more VRAM.
 
-## 环境变量
+## Environment variables
 
-| 变量 | 默认值 | 用途 |
+| Variable | Default | Purpose |
 | --- | --- | --- |
-| `QWEN_API_BASE_URL` | `http://127.0.0.1:8000/v1` | 网页连接的 vLLM API |
-| `QWEN_MODEL` | `Qwen3.8-27B` | API 模型名 |
-| `QWEN_VIDEO_DIR` | `~/qwen38-vllm-video/videos` | 网页暂存上传视频的目录，需与 vLLM 的允许目录一致 |
-| `QWEN_HISTORY_DB` | `~/qwen38-vllm-video/history.sqlite3` | 本地分析历史数据库 |
-| `QWEN_MAX_UPLOAD_MB` | `500` | 单个上传文件大小上限 |
-| `MODEL_PATH` | `./model` | `serve.sh` 加载的模型目录 |
-| `VIDEO_DIR` | `./videos` | `serve.sh` 允许读取的本地媒体目录 |
-| `MAX_MODEL_LEN` | `32768` | vLLM 上下文长度 |
+| `QWEN_API_BASE_URL` | `http://127.0.0.1:8000/v1` | vLLM API used by the web app |
+| `QWEN_MODEL` | `Qwen3.8-27B` | API model name |
+| `QWEN_VIDEO_DIR` | `~/qwen38-vllm-video/videos` | Directory for uploaded videos; must match vLLM's allowed directory |
+| `QWEN_HISTORY_DB` | `~/qwen38-vllm-video/history.sqlite3` | Local analysis history database |
+| `QWEN_MAX_UPLOAD_MB` | `500` | Maximum size of one uploaded file |
+| `MODEL_PATH` | `./model` | Model directory loaded by `serve.sh` |
+| `VIDEO_DIR` | `./videos` | Local media directory allowed by `serve.sh` |
+| `MAX_MODEL_LEN` | `32768` | vLLM context length |
 
-代码使用 MIT License。Qwen 模型和量化权重有各自的许可，使用模型时请查看对应模型页面。
+The code is under the MIT License. The Qwen model and quantized weights have their own licenses; check the relevant model pages before using them.
