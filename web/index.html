@@ -3,17 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f5f4ee">
+  <meta name="theme-color" content="#eef0ec">
   <title>Qwen Video Desk · 本地视频分析</title>
-  <link rel="stylesheet" href="/static/style.css">
-  <script src="/static/app.js" defer></script>
+  <link rel="stylesheet" href="/static/style.css?v=2">
+  <link rel="stylesheet" href="/static/refinement.css?v=2">
+  <script src="/static/app.js?v=2" defer></script>
 </head>
 <body>
   <div class="page">
     <header class="topbar">
       <a class="brand" href="/" aria-label="Qwen Video Desk 首页">
         <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
-        <span>Qwen Video Desk</span>
+        <span>Qwen<span class="brand-light"> / Video Desk</span></span>
       </a>
       <div class="status" id="status" role="status" aria-live="polite">
         <span class="status-dot"></span><span id="status-text">正在检查模型</span>
@@ -22,18 +23,24 @@
 
     <main>
       <section class="intro">
-        <div class="eyebrow"><span class="eyebrow-line"></span> LOCAL VIDEO INTELLIGENCE <span class="eyebrow-line"></span></div>
-        <h1>把视频交给模型，<br><em>直接问重点。</em></h1>
-        <p>上传一段 MP4，或粘贴视频地址。Qwen3.8-27B 会直接读取视频，回答你关心的画面、动作与时间线。</p>
-        <div class="intro-meta"><span>本地 vLLM 推理</span><i></i><span>无需手动抽帧</span><i></i><span>中文提问</span></div>
+        <div class="intro-copy">
+          <div class="eyebrow"><span class="eyebrow-line"></span> YOUR VIDEO, UNDERSTOOD.</div>
+          <h1>看懂这段视频<span class="title-punctuation">。</span></h1>
+          <p>上传视频，问你真正关心的问题。画面、动作和时间线，交给本地运行的 Qwen3.8-27B。</p>
+        </div>
+        <div class="intro-aside" aria-label="工作方式">
+          <span class="aside-label">A MORE DIRECT WAY TO SEE</span>
+          <div class="aside-flow"><span>01 <b>选择视频</b></span><i></i><span>02 <b>提出问题</b></span><i></i><span>03 <b>获得答案</b></span></div>
+          <span class="aside-foot">LOCAL INFERENCE <span>↗</span> NO MANUAL FRAME EXTRACTION</span>
+        </div>
       </section>
 
       <section class="workspace" aria-label="视频分析工作区">
         <div class="input-panel">
           <div class="panel-heading">
-            <span class="step">01 / INPUT</span>
-            <h2>选择视频</h2>
-            <p>从本机选择 MP4，或使用可直接访问的视频 URL。</p>
+            <span class="step">01 <span class="step-rule"></span> INPUT</span>
+            <h2>从这里开始<span class="heading-dot">.</span></h2>
+            <p>选择 MP4 文件，或粘贴可直接访问的视频链接。</p>
           </div>
 
           <div class="tabs" role="tablist" aria-label="视频来源">
@@ -47,8 +54,8 @@
               <div class="upload-icon" aria-hidden="true">
                 <svg viewBox="0 0 48 48" fill="none"><path d="M14 32h-2a7 7 0 0 1-.7-14A13 13 0 0 1 36 20a6 6 0 0 1 0 12h-2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M24 36V20m0 0-6 6m6-6 6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </div>
-              <strong id="drop-title">拖入视频，或点击选择</strong>
-              <span id="drop-subtitle">仅 MP4 · 最大 <span id="upload-limit">500</span> MB</span>
+              <strong id="drop-title">拖入视频，或点击浏览</strong>
+              <span id="drop-subtitle">MP4 文件 · 最大 <span id="upload-limit">500</span> MB</span>
             </div>
           </div>
 
@@ -82,15 +89,16 @@
 
         <div class="result-panel">
           <div class="panel-heading result-heading">
-            <span class="step">02 / INSIGHT</span>
-            <h2>分析结果</h2>
+            <span class="step">02 <span class="step-rule"></span> INSIGHT</span>
+            <h2>答案在这里<span class="heading-dot">.</span></h2>
             <p id="result-meta">选择视频并提问，结果会显示在这里。</p>
           </div>
           <div class="result-body" id="result-body" aria-live="polite">
             <div class="empty-state" id="empty-state">
-              <div class="empty-glyph" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-              <strong>等你提出第一个问题</strong>
-              <p>可以让模型概括内容、找关键动作，或整理时间线。</p>
+              <div class="empty-visual" aria-hidden="true"><span class="visual-frame frame-one"></span><span class="visual-frame frame-two"></span><span class="visual-frame frame-three"></span><span class="visual-play">↗</span></div>
+              <span class="empty-kicker">READY WHEN YOU ARE</span>
+              <strong>从一个问题开始。</strong>
+              <p>概括内容、寻找关键动作，或梳理视频的时间线。</p>
             </div>
             <div class="loading-state" id="loading-state" hidden>
               <div class="loader" aria-hidden="true"></div>
@@ -100,7 +108,7 @@
             <div class="answer" id="answer" hidden></div>
             <div class="error-state" id="error-state" hidden></div>
           </div>
-          <div class="result-footer"><span>QWEN3.8 · 27B</span><span>VIDEO UNDERSTANDING / LOCAL</span></div>
+          <div class="result-footer"><span><span class="footer-indicator"></span> QWEN3.8 · 27B</span><span>VIDEO UNDERSTANDING / LOCAL</span></div>
         </div>
       </section>
     </main>

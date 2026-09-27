@@ -37,8 +37,8 @@ function updatePreview() {
     $('drop-subtitle').textContent = '已选择 MP4 · 点击可更换';
     preview.hidden = false;
   } else {
-    $('drop-title').textContent = '拖入视频，或点击选择';
-    $('drop-subtitle').textContent = `仅 MP4 · 最大 ${$('upload-limit').textContent} MB`;
+    $('drop-title').textContent = '拖入视频，或点击浏览';
+    $('drop-subtitle').textContent = `MP4 文件 · 最大 ${$('upload-limit').textContent} MB`;
   }
 }
 
