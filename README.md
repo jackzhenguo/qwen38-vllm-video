@@ -36,6 +36,7 @@ QWEN_VIDEO_DIR="$PWD/videos" .venv/bin/python run_web.py --port 7860
 Open **http://localhost:7860**.
 
 By default, the web app enables “Save this analysis and video to local history.” The answer, question, and video source are stored in local SQLite, and an uploaded MP4 remains in `QWEN_VIDEO_DIR`. Use “History” in the upper right to reopen a video, review its answer, or ask another question. If you turn history saving off, the uploaded file is removed after analysis. Deleting the last history entry that references a local video also removes that video file. For remote videos, history stores only the URL and does not download the video. The page shows up to 100 recent entries; files are not cleaned up automatically, so keep an eye on disk usage.
+History cards show a video frame as a cover when the browser can decode the video. Covers load as you scroll through the list, including for existing records.
 
 If your API address or model name differs, set `QWEN_API_BASE_URL` and `QWEN_MODEL`. `QWEN_MAX_UPLOAD_MB` defaults to 500.
 

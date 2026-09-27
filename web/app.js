@@ -10,6 +10,7 @@ let sourceMode = 'upload';
 let activeHistoryId = null;
 let previewObjectUrl = null;
 let elapsedTimer = null;
+let historyCoverObserver = null;
 let pendingSeekSeconds = null;
 let lastSyncedTimestamp = null;
 const timePattern = /\b(?:\d{1,2}:)?\d{1,2}:\d{2}\b/g;
@@ -240,6 +241,16 @@ async function refreshHistory() {
   count.textContent = String(items.length);
   count.hidden = items.length === 0;
   const list = $('history-list');
+  if (historyCoverObserver) historyCoverObserver.disconnect();
+  historyCoverObserver = 'IntersectionObserver' in window
+    ? new IntersectionObserver((entries, observer) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.src = entry.target.dataset.src;
+          observer.unobserve(entry.target);
+        }
+      }, {root: list, rootMargin: '100px'})
+    : null;
   list.replaceChildren();
   if (!items.length) {
     const empty = document.createElement('p');
@@ -248,12 +259,36 @@ async function refreshHistory() {
     list.append(empty);
     return;
   }
-  for (const item of items) {
+  for (const [index, item] of items.entries()) {
     const row = document.createElement('article');
     row.className = 'history-item';
     const open = document.createElement('button');
     open.type = 'button';
     open.className = 'history-open';
+    const cover = document.createElement('span');
+    cover.className = 'history-cover';
+    const coverFallback = document.createElement('span');
+    coverFallback.className = 'history-cover-fallback';
+    coverFallback.setAttribute('aria-hidden', 'true');
+    coverFallback.textContent = '▶';
+    const coverVideo = document.createElement('video');
+    coverVideo.className = 'history-cover-video';
+    coverVideo.muted = true;
+    coverVideo.playsInline = true;
+    coverVideo.preload = 'metadata';
+    coverVideo.setAttribute('aria-hidden', 'true');
+    coverVideo.dataset.src = item.video_src;
+    coverVideo.addEventListener('loadedmetadata', () => {
+      try {
+        coverVideo.currentTime = Number.isFinite(coverVideo.duration)
+          ? Math.min(1, Math.max(0, coverVideo.duration - 0.1)) : 1;
+      } catch { /* Keep the first decodable frame. */ }
+    });
+    coverVideo.addEventListener('loadeddata', () => cover.classList.add('is-ready'));
+    coverVideo.addEventListener('seeked', () => cover.classList.add('is-ready'));
+    cover.append(coverVideo, coverFallback);
+    const copy = document.createElement('span');
+    copy.className = 'history-copy';
     const date = document.createElement('span');
     date.className = 'history-date';
     date.textContent = new Intl.DateTimeFormat('zh-CN', {dateStyle:'medium', timeStyle:'short'}).format(new Date(item.created_at));
@@ -264,7 +299,8 @@ async function refreshHistory() {
     file.textContent = `${item.source_type === 'upload' ? '本地视频' : '视频链接'} · ${item.filename}`;
     const excerpt = document.createElement('p');
     excerpt.textContent = item.answer.slice(0, 110);
-    open.append(date, title, file, excerpt);
+    copy.append(date, title, file, excerpt);
+    open.append(cover, copy);
     open.addEventListener('click', () => openHistoryItem(item.id));
     const remove = document.createElement('button');
     remove.type = 'button';
@@ -285,6 +321,8 @@ async function refreshHistory() {
     });
     row.append(open, remove);
     list.append(row);
+    if (historyCoverObserver) historyCoverObserver.observe(coverVideo);
+    else if (index < 10) coverVideo.src = item.video_src;
   }
 }
 

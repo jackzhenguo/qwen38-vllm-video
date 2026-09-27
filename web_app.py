@@ -173,10 +173,16 @@ async def health():
 async def list_history():
     with closing(connect_history()) as db:
         rows = db.execute(
-            "SELECT id, created_at, source_type, filename, question, answer, seconds, model "
+            "SELECT id, created_at, source_type, video_url, filename, question, answer, seconds, model "
             "FROM analyses ORDER BY created_at DESC LIMIT 100"
         ).fetchall()
-    return {"items": [dict(row) for row in rows]}
+    items = []
+    for row in rows:
+        item = dict(row)
+        item["video_src"] = f"/api/history/{item['id']}/video" if item["source_type"] == "upload" else item["video_url"]
+        del item["video_url"]
+        items.append(item)
+    return {"items": items}
 
 
 @app.get("/api/history/{record_id}")
