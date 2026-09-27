@@ -15,5 +15,5 @@ if (-not $Python) {
     $Python = "$linuxHome/qwen38-vllm-video/.venv/bin/python"
 }
 
-& wsl -d $Distro -- $Python -m uvicorn web_app:app --app-dir $linuxRepo --host 127.0.0.1 --port $Port
+& wsl -d $Distro -- $Python "$linuxRepo/run_web.py" --port $Port
 if ($LASTEXITCODE -ne 0) { throw "网页服务退出，代码 $LASTEXITCODE。" }

@@ -22,7 +22,7 @@ $linuxUser = (Invoke-Wsl -Arguments @('id', '-un') | Select-Object -First 1).Tri
 $runtime = "$linuxHome/qwen38-vllm-video"
 Invoke-Wsl -Arguments @('test', '-x', "$runtime/serve.sh") | Out-Null
 Invoke-Wsl -Arguments @('test', '-x', "$runtime/.venv/bin/python") | Out-Null
-Invoke-Wsl -Arguments @('test', '-f', "$linuxRepo/web_app.py") | Out-Null
+Invoke-Wsl -Arguments @('test', '-f', "$linuxRepo/run_web.py") | Out-Null
 
 $vllmUnit = @"
 [Unit]
@@ -56,7 +56,7 @@ User=$linuxUser
 WorkingDirectory=$linuxRepo
 Environment=HOME=$linuxHome
 Environment=QWEN_VIDEO_DIR=$runtime/videos
-ExecStart=$runtime/.venv/bin/python -m uvicorn web_app:app --app-dir $linuxRepo --host 127.0.0.1 --port 7860
+ExecStart=$runtime/.venv/bin/python $linuxRepo/run_web.py --port 7860
 Restart=always
 RestartSec=5
 
@@ -81,9 +81,13 @@ $trigger.Delay = 'PT30S'
 $principal = New-ScheduledTaskPrincipal -UserId $account -LogonType Interactive -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description '登录 Windows 后保持 WSL 运行，自动启动 Qwen Video Desk。' -Force | Out-Null
-Start-ScheduledTask -TaskName $TaskName
-& wsl.exe -d $Distro -u root -- /usr/bin/systemctl start qwen-video-vllm.service qwen-video-web.service
-if ($LASTEXITCODE -ne 0) { throw '启动 WSL 服务失败。' }
+if ((Get-ScheduledTask -TaskName $TaskName).State -ne 'Running') {
+    Start-ScheduledTask -TaskName $TaskName
+}
+& wsl.exe -d $Distro -u root -- /usr/bin/systemctl start qwen-video-vllm.service
+if ($LASTEXITCODE -ne 0) { throw '启动模型服务失败。' }
+& wsl.exe -d $Distro -u root -- /usr/bin/systemctl restart qwen-video-web.service
+if ($LASTEXITCODE -ne 0) { throw '启动网页服务失败。' }
 
 Write-Host "已安装 Windows 登录任务：$TaskName"
 Write-Host '已启用 WSL 服务：qwen-video-vllm、qwen-video-web'

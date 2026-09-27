@@ -2,7 +2,7 @@
 
 一个给 **Qwen3.8-27B + vLLM** 用的本地视频分析网页。直接上传 MP4，或粘贴视频 URL，然后用中文提问。页面会显示模型连接状态、视频预览、分析进度和回答。
 
-项目使用 FastAPI + 原生 HTML/CSS/JavaScript，不依赖前端构建工具。网页默认只监听 `127.0.0.1:7860`。
+项目使用 FastAPI + 原生 HTML/CSS/JavaScript，不依赖前端构建工具。网页同时监听本机的 IPv4 `127.0.0.1:7860` 和 IPv6 `[::1]:7860`，让浏览器访问 `localhost:7860` 时两种地址都可用。
 
 ## 已验证环境
 
@@ -24,7 +24,7 @@ cd qwen38-vllm-video
 python3.12 -m venv .venv
 .venv/bin/pip install -r requirements-web.txt
 mkdir -p videos
-QWEN_VIDEO_DIR="$PWD/videos" .venv/bin/uvicorn web_app:app --host 127.0.0.1 --port 7860
+QWEN_VIDEO_DIR="$PWD/videos" .venv/bin/python run_web.py --port 7860
 ```
 
 打开 **http://localhost:7860**。
@@ -61,7 +61,7 @@ uv pip install --python .venv/bin/python --torch-backend=cu130 --no-deps --force
 
 ```bash
 cd ~/qwen38-vllm-video
-.venv/bin/uvicorn web_app:app --host 127.0.0.1 --port 7860
+.venv/bin/python run_web.py --port 7860
 ```
 
 在 WSL2 中，21.8GiB 权重可能超过默认内存上限。本机将 `%USERPROFILE%\.wslconfig` 设为：
