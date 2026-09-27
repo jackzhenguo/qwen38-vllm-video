@@ -6,6 +6,8 @@ A local video analysis web app for **Qwen3.8-27B + vLLM**. Upload an MP4 or past
 
 The analysis API supports streaming: once the model starts generating, the answer appears progressively with a typing cursor. The completed answer is then saved to local history. The original nonstreaming `/api/analyze` endpoint remains available; the web app uses `/api/analyze/stream`.
 
+When a streamed answer starts a new line with a timestamp, the video preview seeks to that point. After analysis, click any timestamp in the answer to jump to that frame. Seeking depends on the browser being able to play the video URL, and timestamps are estimates supplied by the model.
+
 The project uses FastAPI and plain HTML/CSS/JavaScript, with no frontend build tools. The web app listens on both local IPv4 `127.0.0.1:7860` and IPv6 `[::1]:7860`, so either address used by `localhost:7860` works.
 
 ## Verified setup

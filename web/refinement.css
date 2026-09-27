@@ -51,4 +51,5 @@ body{background:radial-gradient(circle at 87% 4%,#f8faf3 0,transparent 34%),var(
 @media(max-width:600px){.brand-light{display:none}.top-actions{gap:6px}.history-button{min-height:31px;padding:0 7px;font-size:9px}.history-icon{font-size:14px}.status{font-size:8px}.history-drawer{padding:27px 20px 18px}}
 
 .answer.typing::after{content:"";display:inline-block;width:2px;height:1em;margin-left:4px;background:#c9ee74;vertical-align:-2px;animation:typing-cursor .8s steps(1) infinite}
+.answer-timestamp{display:inline;border:0;border-radius:4px;padding:1px 3px;background:rgba(185,236,103,.14);color:#cbf58a;font:inherit;font-weight:700;line-height:inherit;cursor:pointer}.answer-timestamp:hover,.answer-timestamp:focus-visible{background:rgba(185,236,103,.3);color:#efffce}
 @keyframes typing-cursor{50%{opacity:0}}

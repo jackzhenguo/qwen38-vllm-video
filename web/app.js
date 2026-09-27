@@ -10,6 +10,63 @@ let sourceMode = 'upload';
 let activeHistoryId = null;
 let previewObjectUrl = null;
 let elapsedTimer = null;
+let pendingSeekSeconds = null;
+let lastSyncedTimestamp = null;
+const timePattern = /\b(?:\d{1,2}:)?\d{1,2}:\d{2}\b/g;
+
+function timestampSeconds(value) {
+  const parts = value.split(':').map(Number);
+  if (parts.length === 2 && parts[1] < 60) return parts[0] * 60 + parts[1];
+  if (parts.length === 3 && parts[1] < 60 && parts[2] < 60) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return null;
+}
+
+function seekPreview(seconds) {
+  if (preview.hidden || !previewVideo.currentSrc && !previewVideo.src) return;
+  pendingSeekSeconds = seconds;
+  if (previewVideo.readyState < HTMLMediaElement.HAVE_METADATA) return;
+  const duration = previewVideo.duration;
+  const target = Number.isFinite(duration) ? Math.min(seconds, Math.max(0, duration - 0.05)) : seconds;
+  try {
+    previewVideo.currentTime = target;
+    pendingSeekSeconds = null;
+  } catch {
+    // Some remote URLs cannot be previewed by the browser even when vLLM can read them.
+  }
+}
+
+function syncStreamingTimestamp(answer) {
+  const lines = answer.split(/\r?\n/);
+  let latest = null;
+  for (const line of lines) {
+    const match = line.match(/^\s*(?:(?:[-*+]|\d+\.)\s+|>\s*)?(?:\*\*)?(\d{1,2}:\d{2}(?::\d{2})?)\b/);
+    if (match && timestampSeconds(match[1]) !== null) latest = match[1];
+  }
+  if (latest && latest !== lastSyncedTimestamp) {
+    lastSyncedTimestamp = latest;
+    seekPreview(timestampSeconds(latest));
+  }
+}
+
+function renderAnswer(text) {
+  const answer = $('answer');
+  answer.replaceChildren();
+  let offset = 0;
+  for (const match of text.matchAll(timePattern)) {
+    const seconds = timestampSeconds(match[0]);
+    if (seconds === null) continue;
+    answer.append(document.createTextNode(text.slice(offset, match.index)));
+    const jump = document.createElement('button');
+    jump.type = 'button';
+    jump.className = 'answer-timestamp';
+    jump.textContent = match[0];
+    jump.setAttribute('aria-label', `跳转视频到 ${match[0]}`);
+    jump.addEventListener('click', () => seekPreview(seconds));
+    answer.append(jump);
+    offset = match.index + match[0].length;
+  }
+  answer.append(document.createTextNode(text.slice(offset)));
+}
 
 function setMode(mode) {
   activeHistoryId = null;
@@ -27,6 +84,7 @@ function setMode(mode) {
 function updatePreview() {
   if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
   previewObjectUrl = null;
+  pendingSeekSeconds = null;
   preview.hidden = true;
   previewVideo.removeAttribute('src');
   const file = fileInput.files?.[0];
@@ -37,6 +95,12 @@ function updatePreview() {
     $('preview-size').textContent = `${(file.size / 1024 / 1024).toFixed(1)} MB`;
     $('drop-title').textContent = file.name;
     $('drop-subtitle').textContent = '已选择 MP4 · 点击可更换';
+    preview.hidden = false;
+  } else if (sourceMode === 'url' && /^https?:\/\//i.test(videoUrl.value.trim())) {
+    const url = videoUrl.value.trim();
+    previewVideo.src = url;
+    $('preview-name').textContent = url;
+    $('preview-size').textContent = '视频 URL';
     preview.hidden = false;
   } else {
     $('drop-title').textContent = '拖入视频，或点击浏览';
@@ -67,7 +131,8 @@ function showResult(kind, text) {
   $('answer').hidden = kind !== 'answer' && kind !== 'typing';
   $('answer').classList.toggle('typing', kind === 'typing');
   $('error-state').hidden = kind !== 'error';
-  if (kind === 'answer' || kind === 'typing') $('answer').textContent = text;
+  if (kind === 'answer') renderAnswer(text);
+  if (kind === 'typing') $('answer').textContent = text;
   if (kind === 'error') $('error-state').textContent = text;
 }
 
@@ -86,6 +151,8 @@ async function analyze() {
     showResult('error', '请输入想问视频的问题。');
     return;
   }
+  if (sourceMode === 'url' && !activeHistoryId) updatePreview();
+  lastSyncedTimestamp = null;
   const body = new FormData();
   body.append('question', question.value.trim());
   body.append('save_history', String($('save-history').checked));
@@ -131,6 +198,7 @@ async function analyze() {
             $('result-meta').textContent = '正在逐字生成回答…';
           }
           $('answer').textContent += event.text;
+          syncStreamingTimestamp($('answer').textContent);
         } else if (event.type === 'error') {
           throw new Error(event.message || '分析失败，请稍后重试。');
         } else if (event.type === 'done') {
@@ -235,6 +303,8 @@ async function openHistoryItem(id) {
       $('drop-subtitle').textContent = '已保存到本地历史 · 可继续提问';
     }
     previewVideo.src = item.video_src;
+    pendingSeekSeconds = null;
+    lastSyncedTimestamp = null;
     $('preview-name').textContent = item.filename;
     $('preview-size').textContent = item.source_type === 'upload' ? '本地历史' : '视频 URL';
     preview.hidden = false;
@@ -252,7 +322,11 @@ $('url-tab').addEventListener('click', () => setMode('url'));
 dropzone.addEventListener('click', () => fileInput.click());
 dropzone.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); fileInput.click(); } });
 fileInput.addEventListener('change', () => { activeHistoryId = null; updatePreview(); });
-videoUrl.addEventListener('input', () => { activeHistoryId = null; preview.hidden = true; previewVideo.removeAttribute('src'); });
+videoUrl.addEventListener('input', () => { activeHistoryId = null; preview.hidden = true; previewVideo.removeAttribute('src'); pendingSeekSeconds = null; });
+videoUrl.addEventListener('change', () => { if (!activeHistoryId) updatePreview(); });
+previewVideo.addEventListener('loadedmetadata', () => {
+  if (pendingSeekSeconds !== null) seekPreview(pendingSeekSeconds);
+});
 for (const name of ['dragenter', 'dragover']) dropzone.addEventListener(name, (event) => { event.preventDefault(); dropzone.classList.add('dragging'); });
 for (const name of ['dragleave', 'drop']) dropzone.addEventListener(name, (event) => { event.preventDefault(); dropzone.classList.remove('dragging'); });
 dropzone.addEventListener('drop', (event) => { if (event.dataTransfer.files.length) { fileInput.files = event.dataTransfer.files; activeHistoryId = null; updatePreview(); } });
