@@ -1,17 +1,20 @@
 """Small local web UI for Qwen video analysis through a vLLM OpenAI API."""
 
+import json
+import logging
 import os
 import re
 import sqlite3
 import time
-from contextlib import closing
+from contextlib import closing, suppress
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from openai import APIConnectionError, APIStatusError, APITimeoutError, AsyncOpenAI
 
@@ -27,6 +30,7 @@ MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 app = FastAPI(title="Qwen Video Desk", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=ROOT / "web"), name="static")
 client = AsyncOpenAI(base_url=API_BASE_URL, api_key="EMPTY", timeout=3600)
+logger = logging.getLogger(__name__)
 
 
 def connect_history():
@@ -63,6 +67,90 @@ def local_video_path(record):
     if not path.is_relative_to(VIDEO_DIR) or not path.is_file():
         raise HTTPException(404, "本地视频文件已不存在。")
     return path
+
+
+@dataclass
+class VideoInput:
+    source: str
+    source_type: str
+    filename: str
+    video_path: str | None = None
+    video_url: str | None = None
+    uploaded_path: Path | None = None
+
+
+async def prepare_video(question: str, video_url: str, history_id: str, file: UploadFile | None) -> VideoInput:
+    if not question:
+        raise HTTPException(400, "请输入想问视频的问题。")
+    if len(question) > 4000:
+        raise HTTPException(400, "问题请控制在 4000 字以内。")
+    if sum((bool(file and file.filename), bool(video_url), bool(history_id))) != 1:
+        raise HTTPException(400, "请选择一个 MP4 文件、视频 URL 或历史视频。")
+
+    if file and file.filename:
+        if Path(file.filename).suffix.lower() != ".mp4":
+            raise HTTPException(400, "目前只支持 MP4 文件。")
+        VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+        saved_file = VIDEO_DIR / f"upload-{uuid4().hex}.mp4"
+        size = 0
+        try:
+            with saved_file.open("wb") as output:
+                while chunk := await file.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > MAX_UPLOAD_BYTES:
+                        raise HTTPException(413, f"文件不能超过 {MAX_UPLOAD_MB} MB。")
+                    output.write(chunk)
+            if size == 0:
+                raise HTTPException(400, "视频文件为空。")
+        except Exception:
+            saved_file.unlink(missing_ok=True)
+            raise
+        return VideoInput(saved_file.as_uri(), "upload", Path(file.filename).name,
+                          video_path=str(saved_file), uploaded_path=saved_file)
+
+    if history_id:
+        previous = get_record(history_id)
+        if previous["source_type"] == "upload":
+            return VideoInput(local_video_path(previous).as_uri(), "upload", previous["filename"],
+                              video_path=previous["video_path"])
+        return VideoInput(previous["video_url"], "url", previous["filename"],
+                          video_url=previous["video_url"])
+
+    if not video_url.startswith(("https://", "http://")):
+        raise HTTPException(400, "视频 URL 必须以 https:// 或 http:// 开头。")
+    return VideoInput(video_url, "url", video_url, video_url=video_url)
+
+
+def model_messages(video: VideoInput, question: str):
+    return [
+        {"role": "system", "content": "请用纯文本回答，不使用 Markdown 标记。只描述视频中可观察到的内容；不要编造人物身份、动作或时间点。无法确定时请说明。"},
+        {"role": "user", "content": [
+            {"type": "video_url", "video_url": {"url": video.source}},
+            {"type": "text", "text": question},
+        ]},
+    ]
+
+
+def save_record(video: VideoInput, question: str, answer: str, seconds: float) -> str:
+    record_id = uuid4().hex
+    with closing(connect_history()) as db:
+        db.execute(
+            "INSERT INTO analyses VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (record_id, datetime.now(timezone.utc).isoformat(), video.source_type,
+             video.video_path, video.video_url, video.filename, question, answer, seconds, MODEL),
+        )
+        db.commit()
+    return record_id
+
+
+def model_error(exc: Exception) -> tuple[int, str]:
+    if isinstance(exc, (APIConnectionError, APITimeoutError)):
+        return 503, "连接模型服务失败，请确认 vLLM 已启动。"
+    if isinstance(exc, APIStatusError):
+        if exc.status_code == 400:
+            return 400, "模型无法处理这段视频。请先试较短的 MP4，或换一个可直接访问的 URL。"
+        return 502, f"模型服务返回错误（HTTP {exc.status_code}）。"
+    return 500, "分析过程中发生错误，请稍后重试。"
 
 
 @app.get("/")
@@ -226,3 +314,61 @@ async def analyze(
             saved_file.unlink(missing_ok=True)
         if file is not None:
             await file.close()
+
+
+@app.post("/api/analyze/stream")
+async def analyze_stream(
+    question: str = Form(...),
+    video_url: str = Form(""),
+    history_id: str = Form(""),
+    save_history: bool = Form(True),
+    file: UploadFile | None = File(None),
+):
+    question = question.strip()
+    try:
+        video = await prepare_video(question, video_url.strip(), history_id.strip(), file)
+    finally:
+        if file is not None:
+            await file.close()
+
+    def line(kind: str, **data):
+        return json.dumps({"type": kind, **data}, ensure_ascii=False) + "\n"
+
+    async def generate():
+        started = time.monotonic()
+        stream = None
+        keep_uploaded = False
+        try:
+            stream = await client.chat.completions.create(
+                model=MODEL,
+                messages=model_messages(video, question),
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+                max_tokens=2048,
+                stream=True,
+            )
+            parts = []
+            async for chunk in stream:
+                delta = chunk.choices[0].delta.content if chunk.choices else None
+                if delta:
+                    parts.append(delta)
+                    yield line("delta", text=delta)
+            answer = "".join(parts) or "模型没有返回正文，请换一种问法重试。"
+            answer = re.sub(r"\*\*(.*?)\*\*", r"\1", answer, flags=re.DOTALL)
+            seconds = round(time.monotonic() - started, 1)
+            record_id = save_record(video, question, answer, seconds) if save_history else None
+            keep_uploaded = record_id is not None
+            yield line("done", answer=answer, seconds=seconds, model=MODEL, history_id=record_id)
+        except (APIConnectionError, APITimeoutError, APIStatusError) as exc:
+            _, message = model_error(exc)
+            yield line("error", message=message)
+        except Exception:
+            logger.exception("Video streaming failed")
+            yield line("error", message="分析过程中发生错误，请稍后重试。")
+        finally:
+            if stream is not None:
+                with suppress(Exception):
+                    await stream.close()
+            if video.uploaded_path is not None and not keep_uploaded:
+                video.uploaded_path.unlink(missing_ok=True)
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

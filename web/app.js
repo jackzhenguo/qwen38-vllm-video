@@ -64,9 +64,10 @@ async function checkHealth() {
 function showResult(kind, text) {
   $('empty-state').hidden = kind !== 'empty';
   $('loading-state').hidden = kind !== 'loading';
-  $('answer').hidden = kind !== 'answer';
+  $('answer').hidden = kind !== 'answer' && kind !== 'typing';
+  $('answer').classList.toggle('typing', kind === 'typing');
   $('error-state').hidden = kind !== 'error';
-  if (kind === 'answer') $('answer').textContent = text;
+  if (kind === 'answer' || kind === 'typing') $('answer').textContent = text;
   if (kind === 'error') $('error-state').textContent = text;
 }
 
@@ -99,20 +100,56 @@ async function analyze() {
   showResult('loading');
   const started = Date.now();
   elapsedTimer = setInterval(() => { $('elapsed').textContent = String(Math.floor((Date.now() - started) / 1000)); }, 1000);
+  let streamReader = null;
   try {
-    const response = await fetch('/api/analyze', { method: 'POST', body });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || '分析失败，请稍后重试。');
-    showResult('answer', data.answer);
-    $('result-meta').textContent = `${data.model} · 用时 ${data.seconds} 秒`;
-    if (data.history_id) {
-      activeHistoryId = data.history_id;
-      refreshHistory().catch(() => {});
+    const response = await fetch('/api/analyze/stream', { method: 'POST', body });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.detail || '分析失败，请稍后重试。');
     }
+    if (!response.body) throw new Error('浏览器不支持流式输出。');
+    const reader = response.body.getReader();
+    streamReader = reader;
+    const decoder = new TextDecoder();
+    let pending = '';
+    let finished = false;
+    let typing = false;
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      pending += decoder.decode(value, {stream:true});
+      let end;
+      while ((end = pending.indexOf('\n')) !== -1) {
+        const raw = pending.slice(0, end).trim();
+        pending = pending.slice(end + 1);
+        if (!raw) continue;
+        const event = JSON.parse(raw);
+        if (event.type === 'delta') {
+          if (!typing) {
+            typing = true;
+            showResult('typing', '');
+            $('result-meta').textContent = '正在逐字生成回答…';
+          }
+          $('answer').textContent += event.text;
+        } else if (event.type === 'error') {
+          throw new Error(event.message || '分析失败，请稍后重试。');
+        } else if (event.type === 'done') {
+          finished = true;
+          showResult('answer', event.answer);
+          $('result-meta').textContent = `${event.model} · 用时 ${event.seconds} 秒`;
+          if (event.history_id) {
+            activeHistoryId = event.history_id;
+            refreshHistory().catch(() => {});
+          }
+        }
+      }
+    }
+    if (!finished) throw new Error('连接中断，请重试。');
   } catch (error) {
     showResult('error', error.message || '分析失败，请稍后重试。');
     $('result-meta').textContent = '本次分析未完成';
   } finally {
+    if (streamReader) streamReader.cancel().catch(() => {});
     clearInterval(elapsedTimer);
     button.disabled = false;
     $('button-label').textContent = '开始分析视频';
