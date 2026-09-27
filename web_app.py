@@ -123,7 +123,7 @@ async def prepare_video(question: str, video_url: str, history_id: str, file: Up
 
 def model_messages(video: VideoInput, question: str):
     return [
-        {"role": "system", "content": "请用纯文本回答，不使用 Markdown 标记。只描述视频中可观察到的内容；不要编造人物身份、动作或时间点。无法确定时请说明。"},
+        {"role": "system", "content": "请用与用户问题相同的语言、以纯文本回答，不使用 Markdown 标记。只描述视频中可观察到的内容；不要编造人物身份、动作或时间点。无法确定时请说明。"},
         {"role": "user", "content": [
             {"type": "video_url", "video_url": {"url": video.source}},
             {"type": "text", "text": question},
@@ -280,7 +280,7 @@ async def analyze(
             messages=[
                 {
                     "role": "system",
-                    "content": "请用纯文本回答，不使用 Markdown 标记。只描述视频中可观察到的内容；不要编造人物身份、动作或时间点。无法确定时请说明。",
+                    "content": "请用与用户问题相同的语言、以纯文本回答，不使用 Markdown 标记。只描述视频中可观察到的内容；不要编造人物身份、动作或时间点。无法确定时请说明。",
                 },
                 {
                     "role": "user",
