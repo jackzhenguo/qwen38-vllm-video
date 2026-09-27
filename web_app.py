@@ -122,16 +122,23 @@ async def prepare_video(question: str, video_url: str, history_id: str, file: Up
 
 
 def system_prompt(answer_language: str) -> str:
+    timeline_zh = ("除非用户明确要求其他形式，默认先用一句话引出答案，再按时间顺序逐行列出事件。"
+                   "每行严格使用 '- 00:00 - 00:10: 事件描述' 的格式；使用两位数字分秒，不加粗时间，"
+                   "不要合并多个时间段。时间仅写画面能支持的大致范围。")
+    timeline_en = ("Unless the user explicitly requests a different format, start with one short introductory "
+                   "sentence, then list events in chronological order, one per line. Each line must have exactly "
+                   "the form '- 00:00 - 00:10: event description'. Use two-digit minutes and seconds, no bold "
+                   "timestamps, and do not combine time ranges. Only give approximate ranges supported by the video.")
     if answer_language == "en":
         return ("Answer entirely in English, regardless of the language of the question or video. "
-                "Use plain text without Markdown. Describe only what is observable in the video. "
-                "Do not invent identities, actions, or timestamps; say when something is uncertain.")
+                "Describe only what is observable in the video. Do not invent identities, actions, or timestamps; "
+                "say when something is uncertain. " + timeline_en)
     if answer_language == "zh":
         return ("请全程使用简体中文回答，即使问题或视频内容是英文也不要改用英文。"
-                "使用纯文本，不使用 Markdown 标记。只描述视频中可观察到的内容；"
-                "不要编造人物身份、动作或时间点。无法确定时请说明。")
-    return ("请用与用户问题相同的语言、以纯文本回答，不使用 Markdown 标记。"
-            "只描述视频中可观察到的内容；不要编造人物身份、动作或时间点。无法确定时请说明。")
+                "只描述视频中可观察到的内容；不要编造人物身份、动作或时间点。无法确定时请说明。" + timeline_zh)
+    return ("请用与用户问题相同的语言、以纯文本回答，除时间线项目符号外不使用 Markdown 标记。"
+            "只描述视频中可观察到的内容；不要编造人物身份、动作或时间点。无法确定时请说明。"
+            + timeline_zh + " For English answers: " + timeline_en)
 
 
 def validate_answer_language(answer_language: str) -> str:
@@ -157,6 +164,29 @@ def model_messages(video: VideoInput, question: str, answer_language: str = "aut
             {"type": "text", "text": question_text},
         ]},
     ]
+
+
+def normalize_answer(answer: str, answer_language: str = "auto") -> str:
+    answer = re.sub(r"\*\*(.*?)\*\*", r"\1", answer, flags=re.DOTALL)
+    timecode = r"(?:\d{1,2}:)?\d{1,2}:\d{2}"
+    timeline_line = re.compile(
+        rf"^\s*(?:[-*•]\s*)?(?:\d+[.)]\s*)?(?P<start>{timecode})\s*[-–—~～]\s*"
+        rf"(?P<end>{timecode})\s*(?:[:：]\s*)?(?P<description>.+?)\s*$"
+    )
+    lines = []
+    for line in answer.splitlines():
+        match = timeline_line.match(line)
+        if match:
+            lines.append(f"- {match['start']} - {match['end']}: {match['description']}")
+        else:
+            lines.append(line)
+    first_line = next((line for line in lines if line.strip()), "")
+    if first_line.startswith("- ") and timeline_line.match(first_line):
+        use_chinese = answer_language == "zh" or (answer_language == "auto" and bool(re.search(r"[\u4e00-\u9fff]", answer)))
+        introduction = ("好的，这是视频中发生的主要事件的总结：" if use_chinese
+                        else "Here is a summary of the main events in the video:")
+        return introduction + "\n\n" + "\n".join(lines)
+    return "\n".join(lines)
 
 
 def save_record(video: VideoInput, question: str, answer: str, seconds: float) -> str:
@@ -312,7 +342,7 @@ async def analyze(
             max_tokens=2048,
         )
         answer = result.choices[0].message.content or "模型没有返回正文，请换一种问法重试。"
-        answer = re.sub(r"\*\*(.*?)\*\*", r"\1", answer, flags=re.DOTALL)
+        answer = normalize_answer(answer, answer_language)
         seconds = round(time.monotonic() - started, 1)
         record_id = None
         if save_history:
@@ -379,7 +409,7 @@ async def analyze_stream(
                     parts.append(delta)
                     yield line("delta", text=delta)
             answer = "".join(parts) or "模型没有返回正文，请换一种问法重试。"
-            answer = re.sub(r"\*\*(.*?)\*\*", r"\1", answer, flags=re.DOTALL)
+            answer = normalize_answer(answer, answer_language)
             seconds = round(time.monotonic() - started, 1)
             record_id = save_record(video, question, answer, seconds) if save_history else None
             keep_uploaded = record_id is not None

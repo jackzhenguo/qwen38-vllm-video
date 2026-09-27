@@ -8,6 +8,8 @@
 
 **回答语言**默认与界面语言一致，也可为下一次分析单独选择中文或 English。`/api/analyze` 和 `/api/analyze/stream` 均支持 `answer_language=zh` 或 `answer_language=en`；不传或传 `auto` 时沿用按提问语言回答的行为。切换选项不会翻译已有回答。
 
+默认问题会要求按时间顺序逐行列出事件，每行使用 `- 00:00 - 00:10: 事件描述` 格式，时间范围以视频画面可支持的大致时间为准。修改问题或选择其他快捷问题，可以要求不同的回答形式。
+
 ![Qwen Video Desk 演示：本地 MP4 与带时间点的视频分析结果](assets/video-analysis.gif)
 
 分析接口支持流式输出：模型开始生成后，回答会逐段显示，并带有打字光标；完成后才写入本地历史。原有 `/api/analyze` 一次性返回接口仍可使用，网页使用 `/api/analyze/stream`。
