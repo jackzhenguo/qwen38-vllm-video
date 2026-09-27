@@ -6,6 +6,8 @@ A local video analysis web app for **Qwen3.8-27B + vLLM**. Upload an MP4 or past
 
 The web interface switches between English and Chinese from the top bar and remembers your choice in this browser. The default question and suggestions follow the selected language; saved questions and model answers stay in their original language.
 
+The **Answer language** selector defaults to the interface language and can be set independently to English or Chinese for each new analysis. Both `/api/analyze` and `/api/analyze/stream` accept `answer_language=en` or `answer_language=zh`; omitted or `auto` keeps the previous behavior of following the question language. Changing the selector does not translate existing answers.
+
 ![Qwen Video Desk demo: a local MP4 and its timestamped video analysis](assets/video-analysis.gif)
 
 The analysis API supports streaming: once the model starts generating, the answer appears progressively with a typing cursor. The completed answer is then saved to local history. The original nonstreaming `/api/analyze` endpoint remains available; the web app uses `/api/analyze/stream`.

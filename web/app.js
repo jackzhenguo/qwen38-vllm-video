@@ -6,6 +6,7 @@ const preview = $('preview');
 const previewVideo = $('preview-video');
 const question = $('question');
 const button = $('analyze-button');
+const answerLanguage = $('answer-language');
 const translations = {
   zh: {
     pageTitle: 'Qwen Video Desk · 本地视频分析', homeAria: 'Qwen Video Desk 首页', historyButton: '历史记录',
@@ -24,7 +25,7 @@ const translations = {
     defaultQuestion: '请概括视频中的关键事件；仅在能确认时标出大致时间点。', suggestionsAria: '快捷问题',
     summaryLabel: '三句话概括', timelineLabel: '整理时间线', peopleLabel: '人物与动作',
     summaryQuestion: '请用三句话概括这段视频。', timelineQuestion: '按时间顺序列出关键事件；仅在能确认时标出大致时间点。', peopleQuestion: '视频中有哪些人物？他们分别做了什么？',
-    saveHistory: '保存本次分析与视频到本机历史', analyzeButton: '开始分析视频', analyzingButton: '正在分析…',
+    answerLanguageLabel: '回答语言', saveHistory: '保存本次分析与视频到本机历史', analyzeButton: '开始分析视频', analyzingButton: '正在分析…',
     inputNote: '视频由本机 vLLM 处理。关闭保存时，上传文件会在分析结束后删除。',
     resultTitle: '答案在这里', resultIntro: '选择视频并提问，结果会显示在这里。',
     emptyTitle: '从一个问题开始。', emptyCopy: '概括内容、寻找关键动作，或梳理视频的时间线。',
@@ -62,7 +63,7 @@ const translations = {
     defaultQuestion: 'Summarize the key events in this video. Include approximate timestamps only when you can confirm them.', suggestionsAria: 'Suggested questions',
     summaryLabel: 'Three-sentence summary', timelineLabel: 'Build a timeline', peopleLabel: 'People and actions',
     summaryQuestion: 'Summarize this video in three sentences.', timelineQuestion: 'List the key events in chronological order. Include approximate timestamps only when you can confirm them.', peopleQuestion: 'Who appears in the video, and what does each person do?',
-    saveHistory: 'Save this analysis and video to local history', analyzeButton: 'Analyze video', analyzingButton: 'Analyzing…',
+    answerLanguageLabel: 'Answer language', saveHistory: 'Save this analysis and video to local history', analyzeButton: 'Analyze video', analyzingButton: 'Analyzing…',
     inputNote: 'Your local vLLM processes the video. If saving is off, uploaded files are removed after analysis.',
     resultTitle: 'Your answer', resultIntro: 'Choose a video and ask a question to see the result here.',
     emptyTitle: 'Start with a question.', emptyCopy: 'Summarize the video, find key actions, or build a timeline.',
@@ -85,6 +86,7 @@ const translations = {
   }
 };
 let language = localStorage.getItem('qwen-video-language') === 'en' ? 'en' : 'zh';
+let answerLanguageManuallySet = false;
 let maxUploadMb = 500;
 let healthState = null;
 let metaState = {key: 'resultIntro', data: {}};
@@ -114,7 +116,7 @@ function localizeError(message) {
 function renderHealth() {
   const status = $('status');
   status.classList.toggle('online', healthState?.online === true);
-  status.classList.toggle('offline', healthState?.online === false || healthState?.error);
+  status.classList.toggle('offline', Boolean(healthState?.online === false || healthState?.error));
   $('status-text').textContent = healthState?.error ? t('connectionFailed')
     : healthState ? (healthState.online ? t('modelOnline', {model: healthState.model}) : t('modelOffline'))
       : t('checkingModel');
@@ -130,6 +132,7 @@ function applyLanguage() {
   switchButton.textContent = language === 'zh' ? 'EN' : '中文';
   switchButton.setAttribute('aria-label', language === 'zh' ? 'Switch to English' : '切换到中文');
   if (question.value === translations.zh.defaultQuestion || question.value === translations.en.defaultQuestion) question.value = t('defaultQuestion');
+  if (!answerLanguageManuallySet && !button.disabled) answerLanguage.value = language;
   if (sourceMode === 'upload' && !activeHistoryId) {
     if (fileInput.files?.[0]) $('drop-subtitle').textContent = t('selectedFile');
     else { $('drop-title').textContent = t('dropTitle'); $('drop-subtitle').textContent = t('dropHint', {max: maxUploadMb}); }
@@ -291,12 +294,14 @@ async function analyze() {
   lastSyncedTimestamp = null;
   const body = new FormData();
   body.append('question', question.value.trim());
+  body.append('answer_language', answerLanguage.value);
   body.append('save_history', String($('save-history').checked));
   if (activeHistoryId) body.append('history_id', activeHistoryId);
   else if (sourceMode === 'upload') body.append('file', file);
   else body.append('video_url', url);
 
   button.disabled = true;
+  answerLanguage.disabled = true;
   $('button-label').textContent = t('analyzingButton');
   setMeta('processing');
   $('elapsed').textContent = '0';
@@ -356,6 +361,8 @@ async function analyze() {
     if (streamReader) streamReader.cancel().catch(() => {});
     clearInterval(elapsedTimer);
     button.disabled = false;
+    answerLanguage.disabled = false;
+    if (!answerLanguageManuallySet) answerLanguage.value = language;
     $('button-label').textContent = t('analyzeButton');
     checkHealth();
   }
@@ -492,6 +499,7 @@ async function openHistoryItem(id) {
 
 $('upload-tab').addEventListener('click', () => setMode('upload'));
 $('url-tab').addEventListener('click', () => setMode('url'));
+answerLanguage.addEventListener('change', () => { answerLanguageManuallySet = true; });
 dropzone.addEventListener('click', () => fileInput.click());
 dropzone.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); fileInput.click(); } });
 fileInput.addEventListener('change', () => { activeHistoryId = null; updatePreview(); });

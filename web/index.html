@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#eef0ec">
   <title>Qwen Video Desk · 本地视频分析</title>
   <link rel="stylesheet" href="/static/style.css?v=2">
-  <link rel="stylesheet" href="/static/refinement.css?v=8">
-  <script src="/static/app.js?v=8" defer></script>
+  <link rel="stylesheet" href="/static/refinement.css?v=9">
+  <script src="/static/app.js?v=10" defer></script>
 </head>
 <body>
   <div class="page">
@@ -89,6 +89,13 @@
               <button type="button" data-question-key="summary" data-i18n="summaryLabel">三句话概括</button>
               <button type="button" data-question-key="timeline" data-i18n="timelineLabel">整理时间线</button>
               <button type="button" data-question-key="people" data-i18n="peopleLabel">人物与动作</button>
+            </div>
+            <div class="answer-language-row">
+              <label for="answer-language" data-i18n="answerLanguageLabel">回答语言</label>
+              <select id="answer-language" name="answer_language">
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+              </select>
             </div>
           </div>
 

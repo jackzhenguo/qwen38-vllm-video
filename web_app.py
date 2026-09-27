@@ -121,12 +121,40 @@ async def prepare_video(question: str, video_url: str, history_id: str, file: Up
     return VideoInput(video_url, "url", video_url, video_url=video_url)
 
 
-def model_messages(video: VideoInput, question: str):
+def system_prompt(answer_language: str) -> str:
+    if answer_language == "en":
+        return ("Answer entirely in English, regardless of the language of the question or video. "
+                "Use plain text without Markdown. Describe only what is observable in the video. "
+                "Do not invent identities, actions, or timestamps; say when something is uncertain.")
+    if answer_language == "zh":
+        return ("请全程使用简体中文回答，即使问题或视频内容是英文也不要改用英文。"
+                "使用纯文本，不使用 Markdown 标记。只描述视频中可观察到的内容；"
+                "不要编造人物身份、动作或时间点。无法确定时请说明。")
+    return ("请用与用户问题相同的语言、以纯文本回答，不使用 Markdown 标记。"
+            "只描述视频中可观察到的内容；不要编造人物身份、动作或时间点。无法确定时请说明。")
+
+
+def validate_answer_language(answer_language: str) -> str:
+    if answer_language not in {"auto", "zh", "en"}:
+        raise HTTPException(400, "回答语言必须是 auto、zh 或 en。")
+    return answer_language
+
+
+def model_messages(video: VideoInput, question: str, answer_language: str = "auto"):
+    if answer_language == "en":
+        question_text = ("Answer the video question below entirely in English. "
+                         "Translate the question internally if needed. Do not write Chinese in the answer.\n\n"
+                         f"Question: {question}\n\nEnglish answer:")
+    elif answer_language == "zh":
+        question_text = ("请完全用简体中文回答下面的视频问题。如果问题是英文，请先理解问题再用中文回答。\n\n"
+                         f"问题：{question}\n\n中文回答：")
+    else:
+        question_text = question
     return [
-        {"role": "system", "content": "请用与用户问题相同的语言、以纯文本回答，不使用 Markdown 标记。只描述视频中可观察到的内容；不要编造人物身份、动作或时间点。无法确定时请说明。"},
+        {"role": "system", "content": system_prompt(answer_language)},
         {"role": "user", "content": [
             {"type": "video_url", "video_url": {"url": video.source}},
-            {"type": "text", "text": question},
+            {"type": "text", "text": question_text},
         ]},
     ]
 
@@ -222,12 +250,14 @@ async def analyze(
     question: str = Form(...),
     video_url: str = Form(""),
     history_id: str = Form(""),
+    answer_language: str = Form("auto"),
     save_history: bool = Form(True),
     file: UploadFile | None = File(None),
 ):
     question = question.strip()
     video_url = video_url.strip()
     history_id = history_id.strip()
+    answer_language = validate_answer_language(answer_language)
     if not question:
         raise HTTPException(400, "请输入想问视频的问题。")
     if len(question) > 4000:
@@ -277,19 +307,7 @@ async def analyze(
     try:
         result = await client.chat.completions.create(
             model=MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "请用与用户问题相同的语言、以纯文本回答，不使用 Markdown 标记。只描述视频中可观察到的内容；不要编造人物身份、动作或时间点。无法确定时请说明。",
-                },
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "video_url", "video_url": {"url": source}},
-                        {"type": "text", "text": question},
-                    ],
-                }
-            ],
+            messages=model_messages(VideoInput(source, source_type, filename), question, answer_language),
             extra_body={"chat_template_kwargs": {"enable_thinking": False}},
             max_tokens=2048,
         )
@@ -327,10 +345,12 @@ async def analyze_stream(
     question: str = Form(...),
     video_url: str = Form(""),
     history_id: str = Form(""),
+    answer_language: str = Form("auto"),
     save_history: bool = Form(True),
     file: UploadFile | None = File(None),
 ):
     question = question.strip()
+    answer_language = validate_answer_language(answer_language)
     try:
         video = await prepare_video(question, video_url.strip(), history_id.strip(), file)
     finally:
@@ -347,7 +367,7 @@ async def analyze_stream(
         try:
             stream = await client.chat.completions.create(
                 model=MODEL,
-                messages=model_messages(video, question),
+                messages=model_messages(video, question, answer_language),
                 extra_body={"chat_template_kwargs": {"enable_thinking": False}},
                 max_tokens=2048,
                 stream=True,

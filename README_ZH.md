@@ -6,6 +6,8 @@
 
 网页顶部可切换中文和英文，浏览器会记住选择。默认问题和快捷问题会随语言切换；已有问题和模型回答保留原文。
 
+**回答语言**默认与界面语言一致，也可为下一次分析单独选择中文或 English。`/api/analyze` 和 `/api/analyze/stream` 均支持 `answer_language=zh` 或 `answer_language=en`；不传或传 `auto` 时沿用按提问语言回答的行为。切换选项不会翻译已有回答。
+
 ![Qwen Video Desk 演示：本地 MP4 与带时间点的视频分析结果](assets/video-analysis.gif)
 
 分析接口支持流式输出：模型开始生成后，回答会逐段显示，并带有打字光标；完成后才写入本地历史。原有 `/api/analyze` 一次性返回接口仍可使用，网页使用 `/api/analyze/stream`。
