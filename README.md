@@ -10,7 +10,7 @@ The **Answer language** selector defaults to the interface language and can be s
 
 By default, the app asks for a chronological event list. Each event appears on its own line as `- 00:00 - 00:10: event description`, with approximate time ranges supported by the video. You can edit the question or choose another suggestion to request a different answer format.
 
-![Qwen Video Desk demo: a local MP4 and its timestamped video analysis](assets/video-analysis.gif)
+![Qwen Video Desk English demo: a local MP4 and its timestamped video analysis](assets/video-analysis-english.gif)
 
 The analysis API supports streaming: once the model starts generating, the answer appears progressively with a typing cursor. The completed answer is then saved to local history. The original nonstreaming `/api/analyze` endpoint remains available; the web app uses `/api/analyze/stream`.
 
